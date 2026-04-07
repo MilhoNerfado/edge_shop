@@ -23,7 +23,8 @@ class RS232EchoPage extends StatefulWidget {
   State<RS232EchoPage> createState() => _RS232EchoPageState();
 }
 
-class _RS232EchoPageState extends State<RS232EchoPage> {
+class _RS232EchoPageState extends State<RS232EchoPage>
+    with WidgetsBindingObserver {
   final UartChannelService _uart = UartChannelService();
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -174,7 +175,28 @@ class _RS232EchoPageState extends State<RS232EchoPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (_portOpen) {
+        _uart.close();
+        _portOpen = false;
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_portOpen) {
+      _uart.close();
+    }
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();

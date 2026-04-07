@@ -21,11 +21,21 @@ class MainActivity : FlutterActivity() {
     private val workerHandler = Handler(workerThread.looper)
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         uartService = UartService(this)
         Log.d(TAG, "UartService initialized")
+
+        // Catch crashes so the UART port is released even on unhandled exceptions
+        previousUncaughtHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e(TAG, "Uncaught exception — emergency UART close", throwable)
+            try { uartService?.close() } catch (_: Exception) {}
+            previousUncaughtHandler?.uncaughtException(thread, throwable)
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -68,6 +78,14 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+    }
+
+    override fun onStop() {
+        Log.d(TAG, "onStop — closing UART as a precaution")
+        try { uartService?.close() } catch (e: Exception) {
+            Log.w(TAG, "UART close in onStop failed: ${e.message}")
+        }
+        super.onStop()
     }
 
     override fun onDestroy() {

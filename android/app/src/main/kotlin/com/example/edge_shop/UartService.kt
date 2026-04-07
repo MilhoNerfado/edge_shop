@@ -73,42 +73,87 @@ class UartService(context: Context) {
         }
 
         return try {
-            val data = Parcel.obtain()
-            val reply = Parcel.obtain()
-            try {
-                data.writeInterfaceToken(INTERFACE_DESCRIPTOR)
-                data.writeString(DEV_NAME)
-                // UartDevConfig Parcelable: non-null marker + 4 config ints
-                data.writeInt(1)
-                data.writeInt(UART_BAUD_RATE_9600)
-                data.writeInt(UART_PARITY_NONE)
-                data.writeInt(UART_STOP_BIT_1)
-                data.writeInt(UART_FLOW_CTRL_DISABLE)
+            val result = doOpen()
 
-                Log.d(TAG, "Sending uartOpen transaction (9600/8N1)...")
-                telitBinder!!.transact(TRANSACTION_uartOpen, data, reply, 0)
-                reply.readException()
-                val result = reply.readInt()
-
-                if (result == 0) {
+            // Error -16 (EBUSY): port left open from a previous crash — close and retry once
+            if (result == -16) {
+                Log.w(TAG, "uartOpen returned -16 (EBUSY) — closing stale handle and retrying")
+                forceClose()
+                val retry = doOpen()
+                if (retry == 0) {
                     isOpen = true
-                    val msg = "Port $DEV_NAME opened successfully (9600/8N1)"
+                    Log.d(TAG, "Port $DEV_NAME recovered and opened (9600/8N1) — flushing Arduino rx buffer")
+                    write("\r\n")
+                    val msg = "Port $DEV_NAME recovered and opened (9600/8N1)"
                     Log.d(TAG, msg)
                     mapOf("success" to true, "message" to msg)
                 } else {
-                    val msg = "uartOpen returned error code: $result"
+                    val msg = "uartOpen retry failed with error code: $retry"
                     Log.e(TAG, msg)
                     mapOf("success" to false, "message" to msg)
                 }
-            } finally {
-                data.recycle()
-                reply.recycle()
+            } else if (result == 0) {
+                isOpen = true
+                Log.d(TAG, "Port $DEV_NAME opened successfully (9600/8N1) — flushing Arduino rx buffer")
+                write("\r\n")
+                val msg = "Port $DEV_NAME opened successfully (9600/8N1)"
+                Log.d(TAG, msg)
+                mapOf("success" to true, "message" to msg)
+            } else {
+                val msg = "uartOpen returned error code: $result"
+                Log.e(TAG, msg)
+                mapOf("success" to false, "message" to msg)
             }
         } catch (e: Exception) {
             val msg = "Exception during uartOpen: ${e.message}"
             Log.e(TAG, msg, e)
             mapOf("success" to false, "message" to msg)
         }
+    }
+
+    /// Raw open transaction — returns the HAL result code.
+    private fun doOpen(): Int {
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+            data.writeInterfaceToken(INTERFACE_DESCRIPTOR)
+            data.writeString(DEV_NAME)
+            data.writeInt(1)
+            data.writeInt(UART_BAUD_RATE_9600)
+            data.writeInt(UART_PARITY_NONE)
+            data.writeInt(UART_STOP_BIT_1)
+            data.writeInt(UART_FLOW_CTRL_DISABLE)
+
+            Log.d(TAG, "Sending uartOpen transaction (9600/8N1)...")
+            telitBinder!!.transact(TRANSACTION_uartOpen, data, reply, 0)
+            reply.readException()
+            return reply.readInt()
+        } finally {
+            data.recycle()
+            reply.recycle()
+        }
+    }
+
+    /// Unconditional close — used to reclaim a stale handle regardless of [isOpen].
+    private fun forceClose() {
+        try {
+            val data = Parcel.obtain()
+            val reply = Parcel.obtain()
+            try {
+                data.writeInterfaceToken(INTERFACE_DESCRIPTOR)
+                data.writeString(DEV_NAME)
+                telitBinder!!.transact(TRANSACTION_uartClose, data, reply, 0)
+                reply.readException()
+                val code = reply.readInt()
+                Log.d(TAG, "forceClose result: $code")
+            } finally {
+                data.recycle()
+                reply.recycle()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "forceClose failed: ${e.message}")
+        }
+        isOpen = false
     }
 
     fun close(): Map<String, Any> {
