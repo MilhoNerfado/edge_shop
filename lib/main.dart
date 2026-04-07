@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pages/rs232_echo_page.dart';
 import 'pages/gpio_control_page.dart';
+import 'pages/nfc_reader_page.dart';
 
 void main() {
   runApp(const MainApp());
@@ -36,6 +37,7 @@ class _HomePageState extends State<HomePage> {
   static const List<Widget> _pages = [
     GpioControlPage(),
     RS232EchoPage(),
+    NfcReaderPage(),
   ];
 
   @override
@@ -57,6 +59,11 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.terminal_outlined),
             selectedIcon: Icon(Icons.terminal),
             label: 'RS-232 Echo',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.nfc_outlined),
+            selectedIcon: Icon(Icons.nfc),
+            label: 'NFC Reader',
           ),
         ],
       ),
