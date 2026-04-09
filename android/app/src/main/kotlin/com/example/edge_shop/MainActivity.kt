@@ -1,5 +1,7 @@
 package com.example.edge_shop
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -22,6 +24,30 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        startLockTaskIfAllowed()
+    }
+
+    private fun startLockTaskIfAllowed() {
+        try {
+            val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val admin = ComponentName(this, AdminReceiver::class.java)
+            if (dpm.isDeviceOwnerApp(packageName)) {
+                // Silently whitelist and lock — no system overlay, no user prompt
+                dpm.setLockTaskPackages(admin, arrayOf(packageName))
+                startLockTask()
+                Log.d(TAG, "Lock task started (device owner)")
+            } else {
+                // Without device owner, startLockTask() shows a system overlay that
+                // freezes Flutter's first frame. Skip it — use manual screen pinning instead.
+                Log.d(TAG, "Not device owner — skipping auto lock task")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "startLockTask failed: ${e.message}")
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
