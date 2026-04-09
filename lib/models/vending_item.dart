@@ -25,7 +25,7 @@ const List<VendingItem> vendingItems = [
     price: 1.50,
     gpioChannel: 0,
     color: Color(0xFFE53935),
-    icon: Icons.coffee_maker_outlined,
+    icon: Icons.card_giftcard,
   ),
   VendingItem(
     slot: 'A2',
@@ -33,7 +33,7 @@ const List<VendingItem> vendingItems = [
     price: 1.00,
     gpioChannel: 1,
     color: Color(0xFF1E88E5),
-    icon: Icons.headphones_outlined,
+    icon: Icons.card_giftcard,
   ),
   VendingItem(
     slot: 'B1',
@@ -41,7 +41,7 @@ const List<VendingItem> vendingItems = [
     price: 2.00,
     gpioChannel: 2,
     color: Color(0xFFFB8C00),
-    icon: Icons.local_cafe_outlined,
+    icon: Icons.card_giftcard,
   ),
   VendingItem(
     slot: 'B2',
@@ -49,7 +49,7 @@ const List<VendingItem> vendingItems = [
     price: 0.75,
     gpioChannel: 3,
     color: Color(0xFF8E24AA),
-    icon: Icons.card_giftcard_outlined,
+    icon: Icons.card_giftcard,
   ),
 ];
 

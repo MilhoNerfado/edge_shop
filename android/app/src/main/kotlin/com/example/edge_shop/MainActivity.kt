@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,10 +25,23 @@ class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        acquireWakeLock()
         startLockTaskIfAllowed()
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "EdgeShop::KioskWakeLock"
+        ).also {
+            it.acquire()
+            Log.d(TAG, "WakeLock acquired")
+        }
     }
 
     private fun startLockTaskIfAllowed() {
@@ -137,6 +151,12 @@ class MainActivity : FlutterActivity() {
             Log.w(TAG, "Error during UART cleanup: ${e.message}")
         }
         workerThread.quitSafely()
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Log.d(TAG, "WakeLock released")
+            }
+        }
         super.onDestroy()
     }
 }

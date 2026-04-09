@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as dev;
 import 'dart:math';
 import 'dart:typed_data';
@@ -16,7 +17,7 @@ const _nfcIconBg = Color(0xFF153C6B);
 const _cardDefaultBg = Color(0xFF0D2444);
 const _successGreen = Color(0xFF4CAF50);
 
-enum _VendingState { idle, waitingPayment, dispensing, done }
+enum _VendingState { idle, waitingPayment, done }
 
 class VendingMachinePage extends StatefulWidget {
   const VendingMachinePage({super.key});
@@ -33,8 +34,10 @@ class _VendingMachinePageState extends State<VendingMachinePage>
 
   _VendingState _state = _VendingState.idle;
   VendingItem? _selectedItem;
-  String? _lastTagId;
   DateTime? _lastNfcScan;
+
+  Timer? _doneTimer;
+  int _doneSecondsLeft = 5;
 
   late AppStrings _strings;
   late AnimationController _pulseController;
@@ -54,6 +57,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _openPort();
+    _startNfcSession(); // pre-warm session so it's ready before first tap
   }
 
   @override
@@ -67,6 +71,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
+    _doneTimer?.cancel();
     NfcManager.instance.stopSession();
     if (_portOpen) _uart.close();
     super.dispose();
@@ -80,6 +85,11 @@ class _VendingMachinePageState extends State<VendingMachinePage>
         _uart.close();
         setState(() => _portOpen = false);
       }
+      NfcManager.instance.stopSession();
+      dev.log('NFC: session stopped (app paused/detached)', name: 'EdgeShop.NFC');
+    } else if (state == AppLifecycleState.resumed) {
+      dev.log('NFC: restarting session (app resumed)', name: 'EdgeShop.NFC');
+      _startNfcSession();
     }
   }
 
@@ -112,38 +122,41 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   // ── NFC ───────────────────────────────────────────────────────────────────
 
   void _startNfcSession() {
-    dev.log('NFC: startSession — state=$_state item=${_selectedItem?.slot}',
+    dev.log('NFC: startSession (always-on) — current state=$_state',
         name: 'EdgeShop.NFC');
     NfcManager.instance.startSession(
       onDiscovered: (NfcTag tag) async {
         final now = DateTime.now();
         final techs = tag.data.keys.toList();
-        dev.log('NFC: tag discovered — techs=$techs state=$_state',
+        dev.log('NFC: tag discovered — techs=$techs state=$_state ts=${now.millisecondsSinceEpoch}',
             name: 'EdgeShop.NFC');
+
+        if (_state != _VendingState.waitingPayment) {
+          dev.log('NFC: tag ignored — state is $_state (not waitingPayment)',
+              name: 'EdgeShop.NFC');
+          return;
+        }
 
         if (_lastNfcScan != null &&
             now.difference(_lastNfcScan!) < const Duration(seconds: 1)) {
-          dev.log('NFC: debounced (too fast)', name: 'EdgeShop.NFC');
+          dev.log('NFC: debounced — ${now.difference(_lastNfcScan!).inMilliseconds}ms since last scan',
+              name: 'EdgeShop.NFC');
           return;
         }
         _lastNfcScan = now;
 
         final tagId = _extractTagId(tag);
-        dev.log('NFC: tag ID = $tagId', name: 'EdgeShop.NFC');
-
-        if (_state == _VendingState.waitingPayment) {
-          dev.log('NFC: accepting tag for payment', name: 'EdgeShop.NFC');
-          await _onPaymentTagScanned(tagId);
-        } else {
-          dev.log('NFC: tag ignored — wrong state ($_state)',
-              name: 'EdgeShop.NFC');
-        }
+        dev.log('NFC: accepting tag for payment — id=$tagId slot=${_selectedItem?.slot}',
+            name: 'EdgeShop.NFC');
+        await _onPaymentTagScanned(tagId);
       },
       onError: (e) async {
-        dev.log('NFC: session error — ${e.message} (type=${e.type})',
+        dev.log('NFC: session error — ${e.message} (type=${e.type}) state=$_state',
             name: 'EdgeShop.NFC', level: 1000);
-        if (mounted && _state != _VendingState.idle) {
-          setState(() => _state = _VendingState.idle);
+        // Auto-restart session on error so reader stays active
+        if (mounted) {
+          dev.log('NFC: restarting session after error', name: 'EdgeShop.NFC');
+          _startNfcSession();
         }
       },
     );
@@ -175,62 +188,71 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   // ── Vending flow ──────────────────────────────────────────────────────────
 
   void _selectItem(VendingItem item) {
+    dev.log('NFC: item selected — slot=${item.slot} gpio=${item.gpioChannel}',
+        name: 'EdgeShop.NFC');
     setState(() {
       _selectedItem = item;
       _state = _VendingState.waitingPayment;
       _lastNfcScan = null;
     });
-    _startNfcSession();
+    // NFC session already running — no startSession needed here
   }
 
   Future<void> _onPaymentTagScanned(String tagId) async {
     if (_state != _VendingState.waitingPayment || _selectedItem == null) return;
     dev.log(
-        'NFC: payment accepted — tag=$tagId slot=${_selectedItem!.slot} gpio=${_selectedItem!.gpioChannel}',
+        'NFC: payment confirmed — tag=$tagId slot=${_selectedItem!.slot} gpio=${_selectedItem!.gpioChannel}',
         name: 'EdgeShop.NFC');
-    await NfcManager.instance.stopSession();
-    dev.log('NFC: session stopped', name: 'EdgeShop.NFC');
+    // NOTE: do NOT call stopSession() here — calling it from inside the
+    // onDiscovered callback causes an Android NFC deadlock. Session stays running.
     setState(() {
-      _lastTagId = tagId;
-      _state = _VendingState.dispensing;
+      _state = _VendingState.done;
+      _doneSecondsLeft = 5;
     });
+    _startDoneTimer();
+
+    // 1-second GPIO pulse
     await _openGpio(_selectedItem!.gpioChannel);
-    dev.log('GPIO: channel ${_selectedItem!.gpioChannel} OPENED',
+    dev.log('GPIO: channel ${_selectedItem!.gpioChannel} OPENED (pulse)',
+        name: 'EdgeShop.GPIO');
+    await Future.delayed(const Duration(seconds: 1));
+    await _closeGpio(_selectedItem!.gpioChannel);
+    dev.log('GPIO: channel ${_selectedItem!.gpioChannel} CLOSED (pulse end)',
         name: 'EdgeShop.GPIO');
   }
 
-  Future<void> _closeSlot() async {
-    debugPrint('_closeSlot called — state=$_state item=${_selectedItem?.slot}');
-    if (_state != _VendingState.dispensing || _selectedItem == null) return;
-    dev.log('GPIO: closing channel ${_selectedItem!.gpioChannel}',
-        name: 'EdgeShop.GPIO');
-    await _closeGpio(_selectedItem!.gpioChannel);
-    dev.log('GPIO: channel ${_selectedItem!.gpioChannel} CLOSED',
-        name: 'EdgeShop.GPIO');
-    setState(() => _state = _VendingState.done);
-    await Future.delayed(const Duration(seconds: 3));
+  void _startDoneTimer() {
+    _doneTimer?.cancel();
+    _doneTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _doneSecondsLeft--);
+      if (_doneSecondsLeft <= 0) {
+        timer.cancel();
+        _resetToIdle();
+      }
+    });
+  }
+
+  void _resetToIdle() {
+    _doneTimer?.cancel();
+    _doneTimer = null;
     if (mounted) {
       setState(() {
         _state = _VendingState.idle;
         _selectedItem = null;
-        _lastTagId = null;
         _lastNfcScan = null;
+        _doneSecondsLeft = 5;
       });
     }
   }
 
   Future<void> _cancelSelection() async {
-    dev.log('NFC: cancel — stopping session, state=$_state',
-        name: 'EdgeShop.NFC');
-    if (_selectedItem != null) {
-      await _closeGpio(_selectedItem!.gpioChannel);
-    }
-    await NfcManager.instance.stopSession();
-    setState(() {
-      _state = _VendingState.idle;
-      _selectedItem = null;
-      _lastNfcScan = null;
-    });
+    dev.log('NFC: cancel — state=$_state', name: 'EdgeShop.NFC');
+    // Session keeps running — no stopSession needed
+    _resetToIdle();
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -244,7 +266,6 @@ class _VendingMachinePageState extends State<VendingMachinePage>
           Positioned.fill(child: _buildBackground()),
           if (_state == _VendingState.idle) SafeArea(child: _buildProductGrid()),
           if (_state == _VendingState.waitingPayment) _buildPaymentScreen(),
-          if (_state == _VendingState.dispensing) _buildDispensingScreen(),
           if (_state == _VendingState.done) _buildSuccessScreen(),
           // Edge logo always at bottom — IgnorePointer so it never eats taps
           Positioned(
@@ -349,7 +370,20 @@ class _VendingMachinePageState extends State<VendingMachinePage>
               IconButton(
                 icon: const Icon(Icons.settings_outlined,
                     color: Colors.white24, size: 20),
-                onPressed: () => Navigator.of(context).pushNamed('/debug'),
+                onPressed: () async {
+                  // Stop our session so the debug NFC reader can start its own
+                  dev.log('NFC: stopping session for debug navigation',
+                      name: 'EdgeShop.NFC');
+                  final navigator = Navigator.of(context);
+                  await NfcManager.instance.stopSession();
+                  await navigator.pushNamed('/debug');
+                  // Restart when returning from debug
+                  if (mounted) {
+                    dev.log('NFC: restarting session after debug return',
+                        name: 'EdgeShop.NFC');
+                    _startNfcSession();
+                  }
+                },
                 tooltip: 'Debug tools',
               ),
             ],
@@ -515,117 +549,6 @@ class _VendingMachinePageState extends State<VendingMachinePage>
     );
   }
 
-  // ── Dispensing screen ──────────────────────────────────────────────────────
-
-  Widget _buildDispensingScreen() {
-    final item = _selectedItem!;
-    const green = Color(0xFF00FF88);
-    return Positioned.fill(
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedBuilder(
-                        animation: _pulseAnimation,
-                        builder: (context, _) => Transform.scale(
-                          scale: _pulseAnimation.value,
-                          child: Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: green.withValues(alpha: 0.12),
-                              border: Border.all(color: green, width: 2),
-                            ),
-                            child: const Icon(Icons.check, color: green, size: 40),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _strings.paymentConfirmed,
-                        style: const TextStyle(color: green, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _strings.giftNames[item.giftIndex - 1],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Slot ${item.slot} • GPIO ${item.gpioChannel + 1} is OPEN',
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 13),
-                      ),
-                      if (_lastTagId != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Card: $_lastTagId',
-                          style: const TextStyle(
-                            color: Colors.white24,
-                            fontSize: 11,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _strings.takeItemToClose,
-                      style: const TextStyle(color: Colors.white60, fontSize: 15),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _closeSlot,
-                      icon: const Icon(Icons.lock_outline, size: 24),
-                      label: Text(_strings.closeSlot.replaceAll('\n', ' ')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _nfcIconBg,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(160, 56),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(32),
-                          side: const BorderSide(color: Colors.white54, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 56),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Success screen ─────────────────────────────────────────────────────────
 
   Widget _buildSuccessScreen() {
@@ -634,12 +557,13 @@ class _VendingMachinePageState extends State<VendingMachinePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Spacer(),
             const Icon(
               Icons.task_alt,
               color: _successGreen,
-              size: 130,
+              size: 120,
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 32),
             const Text(
               'Enjoy your gift!',
               style: TextStyle(
@@ -653,11 +577,20 @@ class _VendingMachinePageState extends State<VendingMachinePage>
             Text(
               'Thank you for your participation.',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
+                color: Colors.white.withValues(alpha: 0.65),
                 fontSize: 20,
                 fontWeight: FontWeight.w300,
               ),
               textAlign: TextAlign.center,
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _resetToIdle,
+              icon: const Icon(Icons.close, color: Colors.white38, size: 18),
+              label: Text(
+                '${_strings.cancel}  ($_doneSecondsLeft)',
+                style: const TextStyle(color: Colors.white38, fontSize: 15),
+              ),
             ),
             const SizedBox(height: 56),
           ],
