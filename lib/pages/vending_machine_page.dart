@@ -333,7 +333,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
     return Center(
       child: SvgPicture.asset(
         'assets/edge.svg',
-        height: 32,
+        height: 48,
         colorFilter: ColorFilter.mode(
           Colors.white.withValues(alpha: 0.7),
           BlendMode.srcIn,
@@ -347,90 +347,83 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   Widget _buildProductGrid() {
     return Column(
       children: [
-        // Status row
+        // Title centred, status row pinned to the right
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Icon(
-                Icons.circle,
-                size: 7,
-                color: _portOpen ? const Color(0xFF00FF88) : Colors.orange,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                _portOpen ? _strings.ready : _strings.connecting,
+              // Left spacer mirrors the right-side status row so the title stays centred
+              const Expanded(child: SizedBox()),
+              const Text(
+                'Choose your gift',
                 style: TextStyle(
-                  color: _portOpen ? const Color(0xFF00FF88) : Colors.orange,
-                  fontSize: 12,
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined,
-                    color: Colors.white24, size: 20),
-                onPressed: () async {
-                  // Stop our session so the debug NFC reader can start its own
-                  dev.log('NFC: stopping session for debug navigation',
-                      name: 'EdgeShop.NFC');
-                  final navigator = Navigator.of(context);
-                  await NfcManager.instance.stopSession();
-                  await navigator.pushNamed('/debug');
-                  // Restart when returning from debug
-                  if (mounted) {
-                    dev.log('NFC: restarting session after debug return',
-                        name: 'EdgeShop.NFC');
-                    _startNfcSession();
-                  }
-                },
-                tooltip: 'Debug tools',
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        size: 7,
+                        color: _portOpen ? const Color(0xFF00FF88) : Colors.orange,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _portOpen ? _strings.ready : _strings.connecting,
+                        style: TextStyle(
+                          color: _portOpen ? const Color(0xFF00FF88) : Colors.orange,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined,
+                            color: Colors.white24, size: 20),
+                        onPressed: () async {
+                          dev.log('NFC: stopping session for debug navigation',
+                              name: 'EdgeShop.NFC');
+                          final navigator = Navigator.of(context);
+                          await NfcManager.instance.stopSession();
+                          await navigator.pushNamed('/debug');
+                          if (mounted) {
+                            dev.log('NFC: restarting session after debug return',
+                                name: 'EdgeShop.NFC');
+                            _startNfcSession();
+                          }
+                        },
+                        tooltip: 'Debug tools',
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        // Title
-        const Padding(
-          padding: EdgeInsets.only(top: 8, bottom: 20),
-          child: Text(
-            'Choose your gift',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        // 2×2 grid
+        const SizedBox(height: 12),
+        // Single column of 3 cards
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(child: _buildProductCard(vendingItems[0])),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildProductCard(vendingItems[1])),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildProductCard(vendingItems[0])),
                 const SizedBox(height: 16),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(child: _buildProductCard(vendingItems[2])),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildProductCard(vendingItems[3])),
-                    ],
-                  ),
-                ),
+                Expanded(child: _buildProductCard(vendingItems[1])),
+                const SizedBox(height: 16),
+                Expanded(child: _buildProductCard(vendingItems[2])),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 56), // space above logo
+        const SizedBox(height: 80), // space above logo
       ],
     );
   }
@@ -442,20 +435,26 @@ class _VendingMachinePageState extends State<VendingMachinePage>
         decoration: BoxDecoration(
           color: _cardDefaultBg,
           borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 1.5,
+          ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Icon(item.icon, color: Colors.white, size: 60),
-            const SizedBox(height: 14),
             Text(
               _strings.giftNames[item.giftIndex - 1],
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w400,
+                fontSize: 32,
+                fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
+            ),
+            const Positioned(
+              left: 24,
+              child: Icon(Icons.card_giftcard, color: Colors.white, size: 52),
             ),
           ],
         ),
@@ -529,7 +528,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
               'Tap NFC card to confirm',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 26,
+                fontSize: 32,
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
@@ -568,7 +567,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
               'Enjoy your gift!',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 32,
+                fontSize: 38,
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,

@@ -42,7 +42,7 @@ class AppStrings {
   }
 
   static const _english = AppStrings(
-    giftNames: ['Gift 1', 'Gift 2', 'Gift 3', 'Gift 4'],
+    giftNames: ['Gift 1', 'Gift 2', 'Gift 3'],
     tapToPay: 'Tap NFC card to pay',
     tapAtTop: 'Hold card near top of device',
     cancel: 'Cancel',
@@ -57,7 +57,7 @@ class AppStrings {
   );
 
   static const _portuguese = AppStrings(
-    giftNames: ['Presente 1', 'Presente 2', 'Presente 3', 'Presente 4'],
+    giftNames: ['Presente 1', 'Presente 2', 'Presente 3'],
     tapToPay: 'Toque o cartão NFC para pagar',
     tapAtTop: 'Aproxime o cartão ao topo do dispositivo',
     cancel: 'Cancelar',
@@ -72,7 +72,7 @@ class AppStrings {
   );
 
   static const _german = AppStrings(
-    giftNames: ['Geschenk 1', 'Geschenk 2', 'Geschenk 3', 'Geschenk 4'],
+    giftNames: ['Geschenk 1', 'Geschenk 2', 'Geschenk 3'],
     tapToPay: 'NFC-Karte zum Bezahlen antippen',
     tapAtTop: 'Karte an die Oberseite des Geräts halten',
     cancel: 'Abbrechen',

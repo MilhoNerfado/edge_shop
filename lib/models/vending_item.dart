@@ -43,13 +43,5 @@ const List<VendingItem> vendingItems = [
     color: Color(0xFFFB8C00),
     icon: Icons.card_giftcard,
   ),
-  VendingItem(
-    slot: 'B2',
-    giftIndex: 4,
-    price: 0.75,
-    gpioChannel: 3,
-    color: Color(0xFF8E24AA),
-    icon: Icons.card_giftcard,
-  ),
 ];
 
