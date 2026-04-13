@@ -462,7 +462,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final iconSize = constraints.maxHeight * 0.65;
+                  final iconSize = (constraints.maxHeight * 0.65).clamp(24.0, double.infinity);
                   return Center(child: _buildItemIcon(config, iconSize));
                 },
               ),
@@ -477,6 +477,8 @@ class _VendingMachinePageState extends State<VendingMachinePage>
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -490,11 +492,13 @@ class _VendingMachinePageState extends State<VendingMachinePage>
       case IconType.image:
         return ClipRRect(
           borderRadius: BorderRadius.circular(size * 0.15),
-          child: Image.file(
-            File(config.imagePath!),
+          child: SizedBox(
             width: size,
             height: size,
-            fit: BoxFit.contain,
+            child: Image.file(
+              File(config.imagePath!),
+              fit: BoxFit.contain,
+            ),
           ),
         );
       case IconType.material:
