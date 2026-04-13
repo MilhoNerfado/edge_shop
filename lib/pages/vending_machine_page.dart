@@ -457,21 +457,27 @@ class _VendingMachinePageState extends State<VendingMachinePage>
             width: 1.5,
           ),
         ),
-        child: Stack(
-          alignment: Alignment.center,
+        child: Column(
           children: [
-            Text(
-              name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w500,
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final iconSize = constraints.maxHeight * 0.65;
+                  return Center(child: _buildItemIcon(config, iconSize));
+                },
               ),
-              textAlign: TextAlign.center,
             ),
-            Positioned(
-              left: 24,
-              child: _buildItemIcon(config),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),
@@ -479,26 +485,26 @@ class _VendingMachinePageState extends State<VendingMachinePage>
     );
   }
 
-  Widget _buildItemIcon(ItemConfig config) {
+  Widget _buildItemIcon(ItemConfig config, double size) {
     switch (config.iconType) {
       case IconType.image:
         return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(size * 0.15),
           child: Image.file(
             File(config.imagePath!),
-            width: 52,
-            height: 52,
-            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
           ),
         );
       case IconType.material:
         return Icon(
           IconData(config.materialIconCode!, fontFamily: 'MaterialIcons'),
           color: Colors.white,
-          size: 52,
+          size: size,
         );
       case IconType.defaultIcon:
-        return const Icon(Icons.card_giftcard, color: Colors.white, size: 52);
+        return Icon(Icons.card_giftcard, color: Colors.white, size: size);
     }
   }
 
