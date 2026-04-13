@@ -107,6 +107,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
       dev.log('NFC: session stopped (app paused/detached)', name: 'EdgeShop.NFC');
     } else if (state == AppLifecycleState.resumed) {
       dev.log('NFC: restarting session (app resumed)', name: 'EdgeShop.NFC');
+      _loadItemConfigs();
       _startNfcSession();
     }
   }
@@ -490,20 +491,25 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   Widget _buildItemIcon(ItemConfig config, double size) {
     switch (config.iconType) {
       case IconType.image:
+        final path = config.imagePath;
+        if (path == null) {
+          return Icon(Icons.card_giftcard, color: Colors.white, size: size);
+        }
         return ClipRRect(
           borderRadius: BorderRadius.circular(size * 0.15),
           child: SizedBox(
             width: size,
             height: size,
-            child: Image.file(
-              File(config.imagePath!),
-              fit: BoxFit.contain,
-            ),
+            child: Image.file(File(path), fit: BoxFit.contain),
           ),
         );
       case IconType.material:
+        final code = config.materialIconCode;
+        if (code == null) {
+          return Icon(Icons.card_giftcard, color: Colors.white, size: size);
+        }
         return Icon(
-          IconData(config.materialIconCode!, fontFamily: 'MaterialIcons'),
+          IconData(code, fontFamily: 'MaterialIcons'),
           color: Colors.white,
           size: size,
         );
