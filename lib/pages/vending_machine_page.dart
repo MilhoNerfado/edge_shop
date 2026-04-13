@@ -45,6 +45,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   late AppStrings _strings;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  late PageController _pageController;
   List<ItemConfig> _itemConfigs = List.filled(3, const ItemConfig());
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
     _pulseAnimation = Tween<double>(begin: 0.88, end: 1.12).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    _pageController = PageController(viewportFraction: 0.88);
     _openPort();
     _startNfcSession(); // pre-warm session so it's ready before first tap
     _loadItemConfigs();
@@ -86,6 +88,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
+    _pageController.dispose();
     _doneTimer?.cancel();
     NfcManager.instance.stopSession();
     if (_portOpen) _uart.close();
@@ -427,7 +430,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
         Expanded(
           child: PageView.builder(
             scrollDirection: Axis.vertical,
-            controller: PageController(viewportFraction: 0.88),
+            controller: _pageController,
             itemCount: vendingItems.length,
             itemBuilder: (context, index) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
