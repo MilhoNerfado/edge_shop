@@ -3,6 +3,9 @@ class AppStrings {
   final String tapToPay;
   final String tapAtTop;
   final String cancel;
+  final String close;
+  final String confirm;
+  final String goBack;
   final String paymentConfirmed;
   final String takeItemToClose;
   final String closeSlot;
@@ -17,6 +20,9 @@ class AppStrings {
     required this.tapToPay,
     required this.tapAtTop,
     required this.cancel,
+    required this.close,
+    required this.confirm,
+    required this.goBack,
     required this.paymentConfirmed,
     required this.takeItemToClose,
     required this.closeSlot,
@@ -25,8 +31,8 @@ class AppStrings {
     required this.thankYou,
     required this.ready,
     required this.connecting,
-  })  : _enjoyPrefix = enjoyPrefix,
-        _enjoySuffix = enjoySuffix;
+  }) : _enjoyPrefix = enjoyPrefix,
+       _enjoySuffix = enjoySuffix;
 
   String enjoyItem(String name) => '$_enjoyPrefix$name$_enjoySuffix';
 
@@ -46,6 +52,9 @@ class AppStrings {
     tapToPay: 'Tap NFC card to pay',
     tapAtTop: 'Hold card near top of device',
     cancel: 'Cancel',
+    close: 'Close',
+    confirm: 'Confirm',
+    goBack: 'Go back',
     paymentConfirmed: 'Payment confirmed',
     takeItemToClose: 'Take your item, then tap to close:',
     closeSlot: 'Close\nSlot',
@@ -61,6 +70,9 @@ class AppStrings {
     tapToPay: 'Toque o cartão NFC para pagar',
     tapAtTop: 'Aproxime o cartão ao topo do dispositivo',
     cancel: 'Cancelar',
+    close: 'Fechar',
+    confirm: 'Confirmar',
+    goBack: 'Voltar',
     paymentConfirmed: 'Pagamento confirmado',
     takeItemToClose: 'Retire o seu item e toque para fechar:',
     closeSlot: 'Fechar\nGaveta',
@@ -76,6 +88,9 @@ class AppStrings {
     tapToPay: 'NFC-Karte zum Bezahlen antippen',
     tapAtTop: 'Karte an die Oberseite des Geräts halten',
     cancel: 'Abbrechen',
+    close: 'Schließen',
+    confirm: 'Bestätigen',
+    goBack: 'Zurück',
     paymentConfirmed: 'Zahlung bestätigt',
     takeItemToClose: 'Artikel entnehmen, dann tippen zum Schließen:',
     closeSlot: 'Fach\nSchließen',

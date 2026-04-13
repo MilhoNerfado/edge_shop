@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'pages/rs232_echo_page.dart';
 import 'pages/gpio_control_page.dart';
+import 'pages/items_config_page.dart';
 import 'pages/nfc_reader_page.dart';
+import 'pages/rs232_echo_page.dart';
 import 'pages/vending_machine_page.dart';
 
 void main() {
@@ -78,6 +79,7 @@ class _DebugToolsPageState extends State<DebugToolsPage> {
     GpioControlPage(),
     RS232EchoPage(),
     NfcReaderPage(),
+    ItemsConfigPage(),
   ];
 
   @override
@@ -108,6 +110,11 @@ class _DebugToolsPageState extends State<DebugToolsPage> {
             icon: Icon(Icons.nfc_outlined),
             selectedIcon: Icon(Icons.nfc),
             label: 'NFC Reader',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.tune_outlined),
+            selectedIcon: Icon(Icons.tune),
+            label: 'Items',
           ),
         ],
       ),
