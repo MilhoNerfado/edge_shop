@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -8,7 +9,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
 import '../app_strings.dart';
+import '../models/item_config.dart';
 import '../models/vending_item.dart';
+import '../services/item_config_service.dart';
 import '../services/uart_service.dart';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   late AppStrings _strings;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  List<ItemConfig> _itemConfigs = List.filled(3, const ItemConfig());
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -58,6 +62,17 @@ class _VendingMachinePageState extends State<VendingMachinePage>
     );
     _openPort();
     _startNfcSession(); // pre-warm session so it's ready before first tap
+    _loadItemConfigs();
+  }
+
+  Future<void> _loadItemConfigs() async {
+    final configs = await Future.wait([
+      ItemConfigService.instance.load(1),
+      ItemConfigService.instance.load(2),
+      ItemConfigService.instance.load(3),
+    ]);
+    if (!mounted) return;
+    setState(() => _itemConfigs = configs);
   }
 
   @override
@@ -394,6 +409,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
                           if (mounted) {
                             dev.log('NFC: restarting session after debug return',
                                 name: 'EdgeShop.NFC');
+                            _loadItemConfigs();
                             _startNfcSession();
                           }
                         },
@@ -407,19 +423,15 @@ class _VendingMachinePageState extends State<VendingMachinePage>
           ),
         ),
         const SizedBox(height: 12),
-        // Single column of 3 cards
+        // Snapping vertical PageView — each card ~88 % of viewport height
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _buildProductCard(vendingItems[0])),
-                const SizedBox(height: 16),
-                Expanded(child: _buildProductCard(vendingItems[1])),
-                const SizedBox(height: 16),
-                Expanded(child: _buildProductCard(vendingItems[2])),
-              ],
+          child: PageView.builder(
+            scrollDirection: Axis.vertical,
+            controller: PageController(viewportFraction: 0.88),
+            itemCount: vendingItems.length,
+            itemBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+              child: _buildProductCard(vendingItems[index]),
             ),
           ),
         ),
@@ -429,6 +441,8 @@ class _VendingMachinePageState extends State<VendingMachinePage>
   }
 
   Widget _buildProductCard(VendingItem item) {
+    final config = _itemConfigs[item.giftIndex - 1];
+    final name = config.customName ?? _strings.giftNames[item.giftIndex - 1];
     return GestureDetector(
       onTap: () => _selectItem(item),
       child: Container(
@@ -444,7 +458,7 @@ class _VendingMachinePageState extends State<VendingMachinePage>
           alignment: Alignment.center,
           children: [
             Text(
-              _strings.giftNames[item.giftIndex - 1],
+              name,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 32,
@@ -452,14 +466,37 @@ class _VendingMachinePageState extends State<VendingMachinePage>
               ),
               textAlign: TextAlign.center,
             ),
-            const Positioned(
+            Positioned(
               left: 24,
-              child: Icon(Icons.card_giftcard, color: Colors.white, size: 52),
+              child: _buildItemIcon(config),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildItemIcon(ItemConfig config) {
+    switch (config.iconType) {
+      case IconType.image:
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(config.imagePath!),
+            width: 52,
+            height: 52,
+            fit: BoxFit.cover,
+          ),
+        );
+      case IconType.material:
+        return Icon(
+          IconData(config.materialIconCode!, fontFamily: 'MaterialIcons'),
+          color: Colors.white,
+          size: 52,
+        );
+      case IconType.defaultIcon:
+        return const Icon(Icons.card_giftcard, color: Colors.white, size: 52);
+    }
   }
 
   // ── NFC waiting screen ─────────────────────────────────────────────────────
