@@ -18,7 +18,7 @@
  */
 
 #define NUM_PINS 4
-const uint8_t gpioPins[NUM_PINS] = {2, 3, 4, 5};
+const uint8_t gpioPins[NUM_PINS] = {13, 3, 4, 5};
 const uint8_t PIN_MASK = 0x0F;
 
 #define BUF_SIZE 8
@@ -28,7 +28,7 @@ uint8_t rxIdx = 0;
 void applyState(uint8_t state) {
   state &= PIN_MASK;
   for (uint8_t i = 0; i < NUM_PINS; i++) {
-    digitalWrite(gpioPins[i], (state >> i) & 1 ? HIGH : LOW);
+    digitalWrite(gpioPins[i], (state >> i) & 1 ? LOW : HIGH);
   }
 }
 
@@ -46,6 +46,8 @@ void setup() {
   for (uint8_t i = 0; i < NUM_PINS; i++) {
     pinMode(gpioPins[i], OUTPUT);
   }
+
+  delay(1);
 
   applyState(0x00);
 }
