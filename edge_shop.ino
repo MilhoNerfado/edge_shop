@@ -17,6 +17,13 @@
  * Example: "0x05\n" → pin 2 HIGH, pin 3 LOW, pin 4 HIGH, pin 5 LOW
  */
 
+#include <SoftwareSerial.h>
+
+#define UART_TX 10
+#define UART_RX 11
+
+SoftwareSerial Uart = SoftwareSerial(UART_RX, UART_TX);
+
 #define NUM_PINS 4
 const uint8_t gpioPins[NUM_PINS] = {13, 3, 4, 5};
 const uint8_t PIN_MASK = 0x0F;
@@ -47,22 +54,28 @@ void setup() {
     pinMode(gpioPins[i], OUTPUT);
   }
 
+  pinMode(UART_RX, INPUT);
+  pinMode(UART_TX, OUTPUT);
+
+  Uart.begin(9600);
+
   delay(1);
 
   applyState(0x00);
 }
 
 void loop() {
-  while (Serial.available()) {
-    char c = Serial.read();
+  while (Uart.available()) {
+    char c = Uart.read();
 
     if (c == '\n' || c == '\r') {
       if (rxIdx == 4 && rxBuf[0] == '0' && (rxBuf[1] == 'x' || rxBuf[1] == 'X')) {
         int8_t hi = hexCharToNibble(rxBuf[2]);
         int8_t lo = hexCharToNibble(rxBuf[3]);
         if (hi >= 0 && lo >= 0) {
+          Serial.println(rxBuf);
           applyState(((uint8_t)hi << 4) | (uint8_t)lo);
-          Serial.println("ACK");
+          Uart.println("ACK");
         }
       }
       rxIdx = 0;
@@ -73,5 +86,8 @@ void loop() {
         rxIdx = BUF_SIZE;
       }
     }
+
+
+    // TODO: Add Analog reader for setting wait time
   }
 }
