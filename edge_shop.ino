@@ -1,93 +1,79 @@
-/**
- * edge_shop.ino — Arduino UNO GPIO Controller via UART
- *
- * Listens on Serial (9600 8N1) for hex-string commands of the form "0xHH\n".
- * Only the lower nibble (bits 0-3) drives 4 GPIOs; upper bits are ignored.
- * Acknowledged: the Arduino replies "ACK\n" after applying a valid command.
- *
- * This string-based protocol filters out boot garbage from the Android device,
- * since random bytes will never match the "0x" + two hex digits + '\n' pattern.
- *
- * Byte layout (only lower nibble used):
- *   bit 0 → pin 2
- *   bit 1 → pin 3
- *   bit 2 → pin 4
- *   bit 3 → pin 5
- *
- * Example: "0x05\n" → pin 2 HIGH, pin 3 LOW, pin 4 HIGH, pin 5 LOW
- */
-
 #include <SoftwareSerial.h>
 
-#define UART_TX 10
-#define UART_RX 11
+#define UART_TX 8
+#define UART_RX 9
 
-SoftwareSerial Uart = SoftwareSerial(UART_RX, UART_TX);
+SoftwareSerial Uart(UART_RX, UART_TX);
 
-#define NUM_PINS 4
-const uint8_t gpioPins[NUM_PINS] = {13, 3, 4, 5};
-const uint8_t PIN_MASK = 0x0F;
-
-#define BUF_SIZE 8
-char rxBuf[BUF_SIZE];
-uint8_t rxIdx = 0;
-
-void applyState(uint8_t state) {
-  state &= PIN_MASK;
-  for (uint8_t i = 0; i < NUM_PINS; i++) {
-    digitalWrite(gpioPins[i], (state >> i) & 1 ? LOW : HIGH);
-  }
-}
-
-int8_t hexCharToNibble(char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  return -1;
-}
+char buffer[6]; // "0xFF\n" + '\0'
+uint8_t index = 0;
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("Arduino GPIO Controller Ready");
-
-  for (uint8_t i = 0; i < NUM_PINS; i++) {
-    pinMode(gpioPins[i], OUTPUT);
-  }
-
-  pinMode(UART_RX, INPUT);
-  pinMode(UART_TX, OUTPUT);
-
   Uart.begin(9600);
 
-  delay(1);
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
+  pinMode(4, OUTPUT);
 
-  applyState(0x00);
+  digitalWrite(2, LOW);
+  digitalWrite(3, LOW);
+  digitalWrite(4, LOW);
+}
+
+void processCommand() {
+  buffer[index] = '\0';
+
+  if (strcmp(buffer, "0x00") == 0) {
+    digitalWrite(2, LOW);
+    digitalWrite(3, LOW);
+    digitalWrite(4, LOW);
+  }
+  else if (strcmp(buffer, "0x01") == 0) {
+    digitalWrite(2, HIGH);
+    digitalWrite(3, LOW);
+    digitalWrite(4, LOW);
+    Uart.println("ACK");
+  }
+  else if (strcmp(buffer, "0x02") == 0) {
+    digitalWrite(2, LOW);
+    digitalWrite(3, HIGH);
+    digitalWrite(4, LOW);
+    Uart.println("ACK");
+  }
+  else if (strcmp(buffer, "0x04") == 0) {
+    digitalWrite(2, LOW);
+    digitalWrite(3, LOW);
+    digitalWrite(4, HIGH);
+    Uart.println("ACK");
+  }
+  else if (strcmp(buffer, "0x0f") == 0) {
+    digitalWrite(2, HIGH);
+    digitalWrite(3, HIGH);
+    digitalWrite(4, HIGH);
+    Uart.println("ACK");
+  }
 }
 
 void loop() {
   while (Uart.available()) {
     char c = Uart.read();
 
-    if (c == '\n' || c == '\r') {
-      if (rxIdx == 4 && rxBuf[0] == '0' && (rxBuf[1] == 'x' || rxBuf[1] == 'X')) {
-        int8_t hi = hexCharToNibble(rxBuf[2]);
-        int8_t lo = hexCharToNibble(rxBuf[3]);
-        if (hi >= 0 && lo >= 0) {
-          Serial.println(rxBuf);
-          applyState(((uint8_t)hi << 4) | (uint8_t)lo);
-          Uart.println("ACK");
+    if (c == '\n') {
+      processCommand();
+      index = 0;
+    } 
+    else {
+      if (index < sizeof(buffer) - 1) {
+        buffer[index++] = c;
+      } 
+      else {
+       // DESLOCA PARA ESQUERDA
+        for (uint8_t i = 0; i < sizeof(buffer) - 2; i++) {
+          buffer[i] = buffer[i + 1];
         }
-      }
-      rxIdx = 0;
-    } else {
-      if (rxIdx < BUF_SIZE - 1) {
-        rxBuf[rxIdx++] = c;
-      } else {
-        rxIdx = BUF_SIZE;
+        buffer[sizeof(buffer) - 2] = c;
+        index = sizeof(buffer) - 1;
       }
     }
-
-
-    // TODO: Add Analog reader for setting wait time
   }
 }
